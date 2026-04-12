@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.zeroday.antivirus.ui.home.HomeFragment"
+        android:label="Home">
+        <action
+            android:id="@+id/action_home_to_scan"
+            app:destination="@id/scanFragment" />
+        <action
+            android:id="@+id/action_home_to_threats"
+            app:destination="@id/threatsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/scanFragment"
+        android:name="com.zeroday.antivirus.ui.scan.ScanFragment"
+        android:label="Scan" />
+
+    <fragment
+        android:id="@+id/threatsFragment"
+        android:name="com.zeroday.antivirus.ui.threats.ThreatsFragment"
+        android:label="Threats" />
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.zeroday.antivirus.ui.settings.SettingsFragment"
+        android:label="Settings" />
+
+</navigation>

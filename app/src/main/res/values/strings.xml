@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Zeroday</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_scan">Scan</string>
+    <string name="nav_threats">Threats</string>
+    <string name="nav_settings">Settings</string>
+    <string name="btn_scan">Run AI Scan</string>
+    <string name="btn_quarantine">Quarantine</string>
+    <string name="btn_dismiss">Dismiss</string>
+    <string name="status_protected">PROTECTED</string>
+    <string name="status_at_risk">AT RISK</string>
+    <string name="status_critical">CRITICAL THREAT</string>
+    <string name="notif_protection_active">Real-time protection active</string>
+    <string name="notif_threat_detected">Threat Detected</string>
+</resources>
