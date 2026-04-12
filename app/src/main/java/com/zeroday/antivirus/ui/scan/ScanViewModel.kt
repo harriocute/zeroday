@@ -3,9 +3,7 @@ package com.zeroday.antivirus.ui.scan
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.zeroday.antivirus.model.ScanStats
-import com.zeroday.antivirus.model.ThreatResult
-import com.zeroday.antivirus.model.ZerodayDatabase
+import com.zeroday.antivirus.model.*
 import com.zeroday.antivirus.scanner.ScanProgress
 import com.zeroday.antivirus.scanner.ZerodayScanner
 import kotlinx.coroutines.flow.*
@@ -19,7 +17,8 @@ data class ScanUiState(
     val totalApps: Int = 0,
     val results: List<ThreatResult> = emptyList(),
     val stats: ScanStats? = null,
-    val error: String? = null
+    val error: String? = null,
+    val scanComplete: Boolean = false
 )
 
 class ScanViewModel(application: Application) : AndroidViewModel(application) {
@@ -31,58 +30,68 @@ class ScanViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<ScanUiState> = _uiState.asStateFlow()
 
     val allThreats = db.threatDao().getAllThreats()
+    val activeThreats = db.threatDao().getNonCleanThreats()
     val activeThreatCount = db.threatDao().getActiveThreatCount()
 
     fun startScan() {
         if (_uiState.value.isScanning) return
-
         viewModelScope.launch {
-            _uiState.update { it.copy(isScanning = true, error = null, results = emptyList()) }
+            _uiState.update {
+                it.copy(isScanning = true, error = null,
+                    results = emptyList(), scanComplete = false, progress = 0f)
+            }
+            try {
+                scanner.scanAllApps().collect { progress ->
+                    when (progress) {
+                        is ScanProgress.Started ->
+                            _uiState.update { it.copy(totalApps = progress.total) }
 
-            scanner.scanAllApps().collect { progress ->
-                when (progress) {
-                    is ScanProgress.Started -> {
-                        _uiState.update { it.copy(totalApps = progress.total) }
-                    }
-                    is ScanProgress.Scanning -> {
-                        val pct = progress.current.toFloat() / progress.total.toFloat()
-                        _uiState.update {
-                            it.copy(
-                                progress = pct,
-                                currentApp = progress.appName,
-                                currentIndex = progress.current
-                            )
+                        is ScanProgress.Scanning -> {
+                            val pct = progress.current.toFloat() / progress.total.toFloat()
+                            _uiState.update {
+                                it.copy(
+                                    progress = pct,
+                                    currentApp = progress.appName,
+                                    currentIndex = progress.current
+                                )
+                            }
                         }
-                    }
-                    is ScanProgress.Complete -> {
-                        db.threatDao().clearAll()
-                        db.threatDao().insertAll(progress.results)
-                        _uiState.update {
-                            it.copy(
-                                isScanning = false,
-                                progress = 1f,
-                                results = progress.results,
-                                stats = progress.stats
-                            )
+                        is ScanProgress.Complete -> {
+                            // Save to DB on IO dispatcher (already handled by Room)
+                            db.threatDao().clearAll()
+                            db.threatDao().insertAll(progress.results)
+                            _uiState.update {
+                                it.copy(
+                                    isScanning = false,
+                                    progress = 1f,
+                                    results = progress.results,
+                                    stats = progress.stats,
+                                    scanComplete = true
+                                )
+                            }
                         }
+                        is ScanProgress.Error ->
+                            _uiState.update {
+                                it.copy(isScanning = false, error = progress.message)
+                            }
                     }
-                    is ScanProgress.Error -> {
-                        _uiState.update { it.copy(isScanning = false, error = progress.message) }
-                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isScanning = false,
+                        error = "Scan failed: ${e.localizedMessage ?: "Unknown error"}")
                 }
             }
         }
     }
 
-    fun quarantine(threatId: Int) {
-        viewModelScope.launch {
-            db.threatDao().quarantine(threatId)
-        }
+    fun quarantine(threatId: Int) = viewModelScope.launch {
+        db.threatDao().quarantine(threatId)
     }
 
-    fun deleteThreat(threatId: Int) {
-        viewModelScope.launch {
-            db.threatDao().delete(threatId)
-        }
+    fun deleteThreat(threatId: Int) = viewModelScope.launch {
+        db.threatDao().delete(threatId)
     }
+
+    fun clearError() = _uiState.update { it.copy(error = null) }
 }

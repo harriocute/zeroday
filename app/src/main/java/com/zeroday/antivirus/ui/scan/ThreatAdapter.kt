@@ -1,6 +1,7 @@
 package com.zeroday.antivirus.ui.scan
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
@@ -14,53 +15,42 @@ import com.zeroday.antivirus.model.ThreatResult
 class ThreatAdapter(
     private val onQuarantine: (ThreatResult) -> Unit,
     private val onDelete: (ThreatResult) -> Unit
-) : ListAdapter<ThreatResult, ThreatAdapter.ThreatViewHolder>(DiffCallback) {
+) : ListAdapter<ThreatResult, ThreatAdapter.VH>(Diff) {
 
-    companion object DiffCallback : DiffUtil.ItemCallback<ThreatResult>() {
+    companion object Diff : DiffUtil.ItemCallback<ThreatResult>() {
         override fun areItemsTheSame(a: ThreatResult, b: ThreatResult) = a.id == b.id
         override fun areContentsTheSame(a: ThreatResult, b: ThreatResult) = a == b
     }
 
-    inner class ThreatViewHolder(private val binding: ItemThreatBinding) :
-        RecyclerView.ViewHolder(binding.root) {
+    inner class VH(private val b: ItemThreatBinding) : RecyclerView.ViewHolder(b.root) {
+        fun bind(t: ThreatResult) {
+            b.tvAppName.text = t.appName
+            b.tvPackage.text = t.packageName
+            b.tvDescription.text = t.description
+            b.tvConfidence.text = "AI Confidence: ${(t.aiConfidence * 100).toInt()}%"
 
-        fun bind(threat: ThreatResult) {
-            binding.tvAppName.text = threat.appName
-            binding.tvPackage.text = threat.packageName
-            binding.tvDescription.text = threat.description
-            binding.tvConfidence.text = "AI: ${(threat.aiConfidence * 100).toInt()}%"
-
-            val (label, colorRes) = when (threat.threatLevel) {
-                ThreatLevel.CRITICAL -> Pair("CRITICAL", R.color.danger)
-                ThreatLevel.HIGH -> Pair("HIGH", R.color.danger)
-                ThreatLevel.MEDIUM -> Pair("MEDIUM", R.color.warning)
-                ThreatLevel.LOW -> Pair("LOW", R.color.warning)
-                ThreatLevel.CLEAN -> Pair("CLEAN", R.color.accent_green)
+            val (label, color) = when (t.threatLevel) {
+                ThreatLevel.CRITICAL -> "CRITICAL" to R.color.danger
+                ThreatLevel.HIGH     -> "HIGH"     to R.color.danger
+                ThreatLevel.MEDIUM   -> "MEDIUM"   to R.color.warning
+                ThreatLevel.LOW      -> "LOW"      to R.color.warning
+                ThreatLevel.CLEAN    -> "CLEAN"    to R.color.accent_green
             }
+            b.tvThreatLevel.text = label
+            b.tvThreatLevel.setTextColor(ContextCompat.getColor(b.root.context, color))
 
-            binding.tvThreatLevel.text = label
-            binding.tvThreatLevel.setTextColor(
-                ContextCompat.getColor(binding.root.context, colorRes)
-            )
+            b.btnQuarantine.visibility =
+                if (t.isQuarantined || t.threatLevel == ThreatLevel.CLEAN) View.GONE
+                else View.VISIBLE
+            b.tvQuarantined.visibility = if (t.isQuarantined) View.VISIBLE else View.GONE
 
-            binding.btnQuarantine.visibility = if (threat.isQuarantined || threat.threatLevel == ThreatLevel.CLEAN)
-                android.view.View.GONE else android.view.View.VISIBLE
-
-            binding.btnQuarantine.setOnClickListener { onQuarantine(threat) }
-            binding.btnDelete.setOnClickListener { onDelete(threat) }
-
-            if (threat.isQuarantined) {
-                binding.tvQuarantined.visibility = android.view.View.VISIBLE
-            }
+            b.btnQuarantine.setOnClickListener { onQuarantine(t) }
+            b.btnDelete.setOnClickListener { onDelete(t) }
         }
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ThreatViewHolder {
-        val binding = ItemThreatBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return ThreatViewHolder(binding)
-    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
+        VH(ItemThreatBinding.inflate(LayoutInflater.from(parent.context), parent, false))
 
-    override fun onBindViewHolder(holder: ThreatViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
+    override fun onBindViewHolder(holder: VH, position: Int) = holder.bind(getItem(position))
 }

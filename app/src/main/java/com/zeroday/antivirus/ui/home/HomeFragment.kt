@@ -19,7 +19,9 @@ class HomeFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: HomeViewModel by viewModels()
 
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -28,21 +30,17 @@ class HomeFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.btnScan.setOnClickListener {
-            findNavController().navigate(R.id.action_home_to_scan)
+            findNavController().navigate(R.id.scanFragment)
         }
-
         binding.cardWifi.setOnClickListener {
-            findNavController().navigate(R.id.action_home_to_threats)
+            findNavController().navigate(R.id.threatsFragment)
         }
-
         binding.switchRealtime.setOnCheckedChangeListener { _, _ ->
             viewModel.toggleRealTimeProtection()
         }
 
-        lifecycleScope.launch {
-            viewModel.uiState.collect { state ->
-                updateUI(state)
-            }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.uiState.collect { state -> updateUI(state) }
         }
     }
 
@@ -52,21 +50,20 @@ class HomeFragment : Fragment() {
         binding.tvClean.text = state.cleanCount.toString()
         binding.switchRealtime.isChecked = state.realTimeProtection
 
-        val (statusText, statusColor) = when (state.overallRisk) {
-            ThreatLevel.CRITICAL -> Pair("CRITICAL THREAT", R.color.danger)
-            ThreatLevel.HIGH -> Pair("HIGH RISK", R.color.danger)
-            ThreatLevel.MEDIUM -> Pair("MEDIUM RISK", R.color.warning)
-            ThreatLevel.LOW -> Pair("LOW RISK", R.color.warning)
-            ThreatLevel.CLEAN -> Pair("PROTECTED", R.color.accent_green)
+        val (statusText, colorRes) = when (state.overallRisk) {
+            ThreatLevel.CRITICAL -> "CRITICAL" to R.color.danger
+            ThreatLevel.HIGH     -> "HIGH RISK" to R.color.danger
+            ThreatLevel.MEDIUM   -> "MEDIUM RISK" to R.color.warning
+            ThreatLevel.LOW      -> "LOW RISK" to R.color.warning
+            ThreatLevel.CLEAN    -> "PROTECTED" to R.color.accent_green
         }
-
         binding.tvStatus.text = statusText
-        binding.tvStatus.setTextColor(requireContext().getColor(statusColor))
+        binding.tvStatus.setTextColor(requireContext().getColor(colorRes))
 
         binding.tvWifiRisk.text = when (state.wifiRisk) {
-            ThreatLevel.CLEAN -> "WiFi: SECURE"
-            ThreatLevel.LOW, ThreatLevel.MEDIUM -> "WiFi: AT RISK"
-            else -> "WiFi: THREAT DETECTED"
+            ThreatLevel.CLEAN                     -> "WiFi: SECURE"
+            ThreatLevel.LOW, ThreatLevel.MEDIUM   -> "WiFi: AT RISK"
+            else                                   -> "WiFi: THREAT"
         }
     }
 

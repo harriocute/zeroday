@@ -9,11 +9,11 @@ interface ThreatDao {
     @Query("SELECT * FROM threats ORDER BY detectedAt DESC")
     fun getAllThreats(): Flow<List<ThreatResult>>
 
-    @Query("SELECT * FROM threats WHERE isQuarantined = 0 ORDER BY detectedAt DESC")
-    fun getActiveThreats(): Flow<List<ThreatResult>>
-
     @Query("SELECT * FROM threats WHERE threatLevel != 'CLEAN' ORDER BY detectedAt DESC")
     fun getNonCleanThreats(): Flow<List<ThreatResult>>
+
+    @Query("SELECT * FROM threats WHERE isQuarantined = 0 AND threatLevel != 'CLEAN' ORDER BY detectedAt DESC")
+    fun getActiveThreats(): Flow<List<ThreatResult>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertThreat(threat: ThreatResult)
@@ -41,14 +41,15 @@ abstract class ZerodayDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: ZerodayDatabase? = null
 
-        fun getInstance(context: Context): ZerodayDatabase {
-            return INSTANCE ?: synchronized(this) {
-                Room.databaseBuilder(
+        fun getInstance(context: Context): ZerodayDatabase =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     ZerodayDatabase::class.java,
                     "zeroday_db"
-                ).build().also { INSTANCE = it }
+                ).fallbackToDestructiveMigration()
+                 .build()
+                 .also { INSTANCE = it }
             }
-        }
     }
 }

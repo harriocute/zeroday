@@ -14,34 +14,31 @@ import com.zeroday.antivirus.R
 import com.zeroday.antivirus.model.ThreatLevel
 import com.zeroday.antivirus.model.ZerodayDatabase
 import com.zeroday.antivirus.scanner.ZerodayScanner
-import com.zeroday.antivirus.scanner.ScanProgress
 import com.zeroday.antivirus.ui.MainActivity
 import kotlinx.coroutines.*
 
 class ProtectionService : Service() {
 
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private lateinit var scanner: ZerodayScanner
     private lateinit var db: ZerodayDatabase
 
-    // Listen for new app installs
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val packageName = intent.data?.schemeSpecificPart ?: return
-            if (intent.action == Intent.ACTION_PACKAGE_ADDED) {
-                scanNewApp(packageName)
-            }
+            val pkg = intent.data?.schemeSpecificPart ?: return
+            if (intent.action == Intent.ACTION_PACKAGE_ADDED) scanNewApp(pkg)
         }
     }
 
     companion object {
         const val CHANNEL_ID = "zeroday_protection"
-        const val NOTIF_ID = 1001
-        const val THREAT_NOTIF_ID = 1002
+        const val NOTIF_ID   = 1001
+        const val THREAT_ID  = 1002
 
         fun start(context: Context) {
-            val intent = Intent(context, ProtectionService::class.java)
-            context.startForegroundService(intent)
+            try {
+                context.startForegroundService(Intent(context, ProtectionService::class.java))
+            } catch (e: Exception) { /* ignore if already running */ }
         }
 
         fun stop(context: Context) {
@@ -53,62 +50,55 @@ class ProtectionService : Service() {
         super.onCreate()
         scanner = ZerodayScanner(this)
         db = ZerodayDatabase.getInstance(this)
-        createNotificationChannel()
-        startForeground(NOTIF_ID, buildNotification("Real-time protection active"))
-
-        // Register package install listener
-        val filter = IntentFilter().apply {
+        createChannel()
+        startForeground(NOTIF_ID, buildNotif("Real-time protection active"))
+        registerReceiver(packageReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)
             addDataScheme("package")
-        }
-        registerReceiver(packageReceiver, filter)
+        })
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
-    }
-
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int) = START_STICKY
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         super.onDestroy()
         scope.cancel()
-        unregisterReceiver(packageReceiver)
+        try { unregisterReceiver(packageReceiver) } catch (e: Exception) {}
     }
 
     private fun scanNewApp(packageName: String) {
         scope.launch {
-            val apps = scanner.getInstalledApps()
-            val app = apps.find { it.packageName == packageName } ?: return@launch
-            val result = scanner.analyzeApp(app)
-
-            db.threatDao().insertThreat(result)
-
-            if (result.threatLevel == ThreatLevel.CRITICAL || result.threatLevel == ThreatLevel.HIGH) {
-                notifyThreat(result.appName, result.description, result.threatLevel)
-            }
+            try {
+                val apps = scanner.getInstalledApps()
+                val app  = apps.find { it.packageName == packageName } ?: return@launch
+                val result = scanner.analyzeApp(app)
+                db.threatDao().insertThreat(result)
+                if (result.threatLevel == ThreatLevel.CRITICAL || result.threatLevel == ThreatLevel.HIGH) {
+                    notifyThreat(result.appName, result.description)
+                }
+            } catch (e: Exception) { /* don't crash the service */ }
         }
     }
 
-    private fun notifyThreat(appName: String, description: String, level: ThreatLevel) {
+    private fun notifyThreat(appName: String, desc: String) {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        val intent = Intent(this, MainActivity::class.java)
-        val pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-
-        val notif = NotificationCompat.Builder(this, CHANNEL_ID)
+        val pi = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        nm.notify(THREAT_ID, NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_shield)
             .setContentTitle("⚠️ Threat Detected: $appName")
-            .setContentText(description.take(100))
-            .setStyle(NotificationCompat.BigTextStyle().bigText(description))
+            .setContentText(desc.take(100))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(desc))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pi)
             .setAutoCancel(true)
-            .build()
-
-        nm.notify(THREAT_NOTIF_ID, notif)
+            .build())
     }
 
-    private fun buildNotification(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotif(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_shield)
         .setContentTitle("Zeroday — Active")
         .setContentText(text)
@@ -116,13 +106,12 @@ class ProtectionService : Service() {
         .setOngoing(true)
         .build()
 
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Zeroday Protection",
-            NotificationManager.IMPORTANCE_LOW
-        ).apply { description = "Real-time threat protection" }
+    private fun createChannel() {
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        nm.createNotificationChannel(channel)
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "Zeroday Protection",
+                NotificationManager.IMPORTANCE_LOW).apply {
+                description = "Real-time threat protection"
+            })
     }
 }
