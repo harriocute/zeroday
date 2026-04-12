@@ -24,14 +24,10 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Download Gradle wrapper jar
-        run: |
-          mkdir -p gradle/wrapper
-          curl -fsSL -o gradle/wrapper/gradle-wrapper.jar \
-            "https://github.com/gradle/gradle/raw/v8.2.0/gradle/wrapper/gradle-wrapper.jar"
-
-      - name: Grant Gradle execute permission
-        run: chmod +x gradlew
+      - name: Install Gradle 8.2
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -44,7 +40,7 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -54,7 +50,7 @@ jobs:
           retention-days: 30
 
       - name: Build Release APK (unsigned)
-        run: ./gradlew assembleRelease --stacktrace
+        run: gradle assembleRelease --stacktrace
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
