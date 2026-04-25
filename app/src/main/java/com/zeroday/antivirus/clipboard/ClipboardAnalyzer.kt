@@ -2,30 +2,92 @@ package com.zeroday.antivirus.clipboard
 
 import com.zeroday.antivirus.util.HashUtil
 
-/**
- * Analyzes clipboard content to detect sensitive data types
- * and assign a risk level. No content is stored raw — only
- * a masked preview and a hash.
- */
 object ClipboardAnalyzer {
 
-    // Regex patterns for sensitive data detection
-    private val CREDIT_CARD   = Regex("""^(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})$""")
-    private val PASSWORD_HINT = Regex("""(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@#$%^&+=!]).{8,}""")
-    private val PHONE_NG      = Regex("""^(\+?234|0)[789][01]\d{8}$""")   // Nigerian numbers
-    private val PHONE_INTL    = Regex("""^\+?[1-9]\d{7,14}$""")
-    private val EMAIL         = Regex("""^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$""")
-    private val URL           = Regex("""https?://[^\s/$.?#].[^\s]*""")
-    private val BTC_ADDRESS   = Regex("""^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,62}$""")
-    private val ETH_ADDRESS   = Regex("""^0x[a-fA-F0-9]{40}$""")
-    private val NIN_NG        = Regex("""^\d{11}$""")                      // Nigerian NIN
-    private val BVN_NG        = Regex("""^\d{11}$""")                      // Nigerian BVN
-    private val NUBAN_NG      = Regex("""^\d{10}$""")                      // Nigerian bank account
-    private val PIN           = Regex("""^\d{4,6}$""")
-    private val SECRET_KEY    = Regex("""[A-Za-z0-9+/]{32,}={0,2}""")    // base64-like secrets
+    // ── Credit / Debit Cards ─────────────────────────────────────
+    // Visa, Mastercard, Amex, Discover, UnionPay, JCB, Diners
+    private val CREDIT_CARD = Regex(
+        """^(?:4[0-9]{12}(?:[0-9]{3})?""" +
+        """|5[1-5][0-9]{14}""" +
+        """|2(?:2[2-9][1-9]|[3-6]\d{2}|7[01]\d|720)[0-9]{12}""" +
+        """|3[47][0-9]{13}""" +
+        """|3(?:0[0-5]|[68][0-9])[0-9]{11}""" +
+        """|6(?:011|5[0-9]{2})[0-9]{12}""" +
+        """|(?:2131|1800|35\d{3})\d{11}""" +
+        """|62[0-9]{14,17})$"""
+    )
 
-    // Apps that legitimately read clipboard frequently
-    private val TRUSTED_CLIPBOARD_APPS = setOf(
+    // ── IBAN ─────────────────────────────────────────────────────
+    private val IBAN = Regex("""^[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}$""")
+
+    // ── US Social Security Number ────────────────────────────────
+    private val SSN_US = Regex("""^(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}$""")
+
+    // ── Passwords & Secrets ──────────────────────────────────────
+    private val PASSWORD_STRONG = Regex(
+        """^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@#${'$'}%^&+=!*\-_]).{8,}$"""
+    )
+    private val API_KEY       = Regex("""(?i)(api[_\-]?key|secret|token|bearer|password|passwd|pwd)\s*[:=]\s*\S{8,}""")
+    private val BASE64_SECRET = Regex("""^[A-Za-z0-9+/]{32,}={0,2}$""")
+    private val HEX_SECRET    = Regex("""^[0-9a-fA-F]{32,}$""")
+    private val PEM_KEY       = Regex("""-----BEGIN .*(PRIVATE|SECRET).*KEY-----""")
+    private val MNEMONIC_SEED = Regex("""^(\w+\s){11,23}\w+$""")
+
+    // ── Phone Numbers ─────────────────────────────────────────────
+    private val PHONE_E164          = Regex("""^\+[1-9]\d{7,14}$""")
+    private val PHONE_US_CA         = Regex("""^(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}$""")
+    private val PHONE_INTL_GENERIC  = Regex("""^\+?(?:[0-9][-.\s]?){8,14}[0-9]$""")
+
+    // ── Email ────────────────────────────────────────────────────
+    private val EMAIL = Regex("""^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$""")
+
+    // ── URLs ─────────────────────────────────────────────────────
+    private val URL = Regex("""https?://[^\s/$.?#].[^\s]*""")
+
+    // ── Crypto Addresses ─────────────────────────────────────────
+    private val BTC_LEGACY  = Regex("""^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$""")
+    private val BTC_BECH32  = Regex("""^bc1[a-z0-9]{39,59}$""")
+    private val ETH         = Regex("""^0x[a-fA-F0-9]{40}$""")
+    private val SOLANA      = Regex("""^[1-9A-HJ-NP-Za-km-z]{32,44}$""")
+    private val TRON        = Regex("""^T[a-zA-Z0-9]{33}$""")
+    private val MONERO      = Regex("""^4[0-9AB][1-9A-HJ-NP-Za-km-z]{93}$""")
+    private val RIPPLE      = Regex("""^r[0-9a-zA-Z]{24,34}$""")
+    private val LITECOIN    = Regex("""^[LM3][a-km-zA-HJ-NP-Z1-9]{26,33}$""")
+
+    // ── National / Government IDs ─────────────────────────────────
+    // India
+    private val AADHAAR_IN  = Regex("""^[2-9][0-9]{11}$""")       // 12-digit Aadhaar
+    private val PAN_IN      = Regex("""^[A-Z]{5}[0-9]{4}[A-Z]$""")// PAN card
+    // UK
+    private val NIN_UK      = Regex("""^[A-CEGHJ-PR-TW-Z]{2}[0-9]{6}[A-D]$""")
+    private val NHS_UK      = Regex("""^[0-9]{10}$""")
+    // Canada
+    private val SIN_CA      = Regex("""^[0-9]{9}$""")
+    // Brazil
+    private val CPF_BR      = Regex("""^[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}$""")
+    private val CNPJ_BR     = Regex("""^[0-9]{2}\.[0-9]{3}\.[0-9]{3}/[0-9]{4}-[0-9]{2}$""")
+    // Singapore
+    private val NRIC_SG     = Regex("""^[STFGM][0-9]{7}[A-Z]$""")
+    // South Africa
+    private val ID_ZA       = Regex("""^[0-9]{13}$""")
+    // Pakistan
+    private val CNIC_PK     = Regex("""^[0-9]{5}-[0-9]{7}-[0-9]$""")
+    // Indonesia
+    private val KTP_ID      = Regex("""^[0-9]{16}$""")
+    // Nigeria
+    private val BVN_NG      = Regex("""^[0-9]{11}$""")
+    private val NUBAN_NG    = Regex("""^[0-9]{10}$""")
+    // Germany
+    private val STEUER_DE   = Regex("""^[0-9]{11}$""")
+    // France
+    private val INSEE_FR    = Regex("""^[12][0-9]{2}[0-9]{2}[0-9]{5}[0-9]{3}[0-9]{2}$""")
+    // Australia
+    private val TFN_AU      = Regex("""^[0-9]{8,9}$""")
+    // Generic passport (many countries)
+    private val PASSPORT    = Regex("""^[A-Z]{1,2}[0-9]{6,9}$""")
+
+    // ── Trusted apps with legitimate clipboard use ───────────────
+    private val TRUSTED_APPS = setOf(
         "com.google.android.gms",
         "com.android.chrome",
         "com.google.android.inputmethod.latin",
@@ -35,14 +97,20 @@ object ClipboardAnalyzer {
         "com.microsoft.swiftkey",
         "com.google.android.apps.docs",
         "com.microsoft.office.word",
-        "com.microsoft.office.excel"
-    )
-
-    // Apps that should NEVER need clipboard access
-    private val SUSPICIOUS_CLIPBOARD_APPS = setOf(
-        // Games, flashlights, and utility apps with no legitimate clipboard need
-        "com.flashlight",
-        "com.battery.saver"
+        "com.microsoft.office.excel",
+        "com.microsoft.office.outlook",
+        "com.google.android.keep",
+        "com.evernote",
+        "com.notion.id",
+        "com.1password",
+        "com.lastpass.lpandroid",
+        "com.dashlane",
+        "com.bitwarden.mobile",
+        "com.google.android.apps.translate",
+        "com.grammarly.android.keyboard",
+        "com.whatsapp",
+        "org.telegram.messenger",
+        "com.discord"
     )
 
     data class AnalysisResult(
@@ -57,76 +125,97 @@ object ClipboardAnalyzer {
     fun analyze(content: String, accessingPackage: String): AnalysisResult {
         val trimmed = content.trim()
         val hash = HashUtil.sha256(trimmed)
-
-        // Detect data type
         val dataType = detectDataType(trimmed)
-
-        // Mask sensitive content
         val (masked, shouldMask) = maskContent(trimmed, dataType)
-
-        // Assess risk
         val (risk, reason) = assessRisk(trimmed, dataType, accessingPackage)
-
-        return AnalysisResult(
-            dataType     = dataType,
-            riskLevel    = risk,
-            riskReason   = reason,
-            maskedPreview = masked,
-            shouldMask   = shouldMask,
-            contentHash  = hash
-        )
+        return AnalysisResult(dataType, risk, reason, masked, shouldMask, hash)
     }
 
     private fun detectDataType(content: String): ClipboardDataType {
-        val clean = content.replace(" ", "").replace("-", "")
+        val clean = content.replace(Regex("[\\s\\-()./]"), "")
+        val upper = clean.uppercase()
+
         return when {
-            CREDIT_CARD.matches(clean)        -> ClipboardDataType.CREDIT_CARD
-            ETH_ADDRESS.matches(clean)        -> ClipboardDataType.CRYPTO_ADDRESS
-            BTC_ADDRESS.matches(clean)        -> ClipboardDataType.CRYPTO_ADDRESS
-            EMAIL.matches(clean)              -> ClipboardDataType.EMAIL
-            URL.containsMatchIn(content)      -> ClipboardDataType.URL
-            PHONE_NG.matches(clean)           -> ClipboardDataType.PHONE_NUMBER
-            PHONE_INTL.matches(clean)         -> ClipboardDataType.PHONE_NUMBER
-            NUBAN_NG.matches(clean)           -> ClipboardDataType.NATIONAL_ID
-            NIN_NG.matches(clean) && clean.length == 11 -> ClipboardDataType.NATIONAL_ID
-            PIN.matches(clean)                -> ClipboardDataType.PASSWORD
-            PASSWORD_HINT.containsMatchIn(content) -> ClipboardDataType.PASSWORD
-            SECRET_KEY.matches(clean) && clean.length >= 32 -> ClipboardDataType.PASSWORD
-            else                              -> ClipboardDataType.PLAIN_TEXT
+            // Financial cards (highest priority)
+            CREDIT_CARD.matches(clean)                              -> ClipboardDataType.CREDIT_CARD
+            IBAN.matches(upper) && upper.length in 15..34           -> ClipboardDataType.NATIONAL_ID
+            SSN_US.matches(content.trim())                          -> ClipboardDataType.NATIONAL_ID
+            CPF_BR.matches(content.trim())                          -> ClipboardDataType.NATIONAL_ID
+            CNPJ_BR.matches(content.trim())                         -> ClipboardDataType.NATIONAL_ID
+            CNIC_PK.matches(content.trim())                         -> ClipboardDataType.NATIONAL_ID
+
+            // Crypto (before generic numbers)
+            ETH.matches(clean)                                      -> ClipboardDataType.CRYPTO_ADDRESS
+            BTC_LEGACY.matches(clean)                               -> ClipboardDataType.CRYPTO_ADDRESS
+            BTC_BECH32.matches(clean)                               -> ClipboardDataType.CRYPTO_ADDRESS
+            TRON.matches(clean)                                     -> ClipboardDataType.CRYPTO_ADDRESS
+            MONERO.matches(clean) && clean.length == 95             -> ClipboardDataType.CRYPTO_ADDRESS
+            RIPPLE.matches(clean)                                   -> ClipboardDataType.CRYPTO_ADDRESS
+            LITECOIN.matches(clean)                                 -> ClipboardDataType.CRYPTO_ADDRESS
+            MNEMONIC_SEED.matches(content.trim()) &&
+                content.trim().split(" ").size in listOf(12, 15, 18, 21, 24) -> ClipboardDataType.CRYPTO_ADDRESS
+
+            // Private keys / secrets
+            PEM_KEY.containsMatchIn(content)                        -> ClipboardDataType.PASSWORD
+            API_KEY.containsMatchIn(content)                        -> ClipboardDataType.PASSWORD
+            PASSWORD_STRONG.matches(content.trim())                 -> ClipboardDataType.PASSWORD
+            BASE64_SECRET.matches(clean) && clean.length in 32..512 -> ClipboardDataType.PASSWORD
+            HEX_SECRET.matches(clean) && clean.length in 32..64     -> ClipboardDataType.PASSWORD
+
+            // Country-specific IDs
+            PAN_IN.matches(upper)                                   -> ClipboardDataType.NATIONAL_ID
+            NRIC_SG.matches(upper) && upper.length == 9             -> ClipboardDataType.NATIONAL_ID
+            NIN_UK.matches(upper) && upper.length == 9              -> ClipboardDataType.NATIONAL_ID
+            PASSPORT.matches(upper) && upper.length in 7..11        -> ClipboardDataType.NATIONAL_ID
+            AADHAAR_IN.matches(clean) && clean.length == 12         -> ClipboardDataType.NATIONAL_ID
+            INSEE_FR.matches(clean) && clean.length == 15           -> ClipboardDataType.NATIONAL_ID
+            KTP_ID.matches(clean) && clean.length == 16             -> ClipboardDataType.NATIONAL_ID
+            ID_ZA.matches(clean) && clean.length == 13              -> ClipboardDataType.NATIONAL_ID
+            BVN_NG.matches(clean) && clean.length == 11             -> ClipboardDataType.NATIONAL_ID
+            NUBAN_NG.matches(clean) && clean.length == 10           -> ClipboardDataType.NATIONAL_ID
+            SIN_CA.matches(clean) && clean.length == 9              -> ClipboardDataType.NATIONAL_ID
+            TFN_AU.matches(clean) && clean.length in 8..9           -> ClipboardDataType.NATIONAL_ID
+
+            // Contact
+            EMAIL.matches(clean)                                    -> ClipboardDataType.EMAIL
+            PHONE_E164.matches(clean)                               -> ClipboardDataType.PHONE_NUMBER
+            PHONE_US_CA.matches(content.trim())                     -> ClipboardDataType.PHONE_NUMBER
+            PHONE_INTL_GENERIC.matches(content.trim()) &&
+                clean.length in 8..15                               -> ClipboardDataType.PHONE_NUMBER
+
+            // URLs
+            URL.containsMatchIn(content)                            -> ClipboardDataType.URL
+
+            else                                                    -> ClipboardDataType.PLAIN_TEXT
         }
     }
 
     private fun maskContent(content: String, type: ClipboardDataType): Pair<String, Boolean> {
         return when (type) {
             ClipboardDataType.CREDIT_CARD -> {
-                val digits = content.replace(" ", "").replace("-", "")
-                "****-****-****-${digits.takeLast(4)}" to true
+                val d = content.filter { it.isDigit() }
+                "****-****-****-${d.takeLast(4)}" to true
             }
-            ClipboardDataType.PASSWORD -> {
-                "•".repeat(minOf(content.length, 12)) to true
-            }
+            ClipboardDataType.PASSWORD ->
+                "${content.take(3)}${"•".repeat(minOf(content.length - 3, 20))}" to true
             ClipboardDataType.NATIONAL_ID -> {
-                val visible = content.take(3)
-                "$visible${"*".repeat(content.length - 3)}" to true
+                val c = content.filter { it.isLetterOrDigit() }
+                "${c.take(3)}${"*".repeat((c.length - 3).coerceAtLeast(0))}" to true
             }
-            ClipboardDataType.CRYPTO_ADDRESS -> {
+            ClipboardDataType.CRYPTO_ADDRESS ->
                 "${content.take(8)}…${content.takeLast(6)}" to true
-            }
             ClipboardDataType.PHONE_NUMBER -> {
-                val last4 = content.takeLast(4)
-                "****$last4" to true
+                val d = content.filter { it.isDigit() }
+                "***-***-${d.takeLast(4)}" to true
             }
             ClipboardDataType.EMAIL -> {
                 val parts = content.split("@")
                 if (parts.size == 2) {
-                    val user = parts[0]
-                    val masked = if (user.length > 2)
-                        "${user.take(2)}${"*".repeat(user.length - 2)}@${parts[1]}"
-                    else "${user}***@${parts[1]}"
-                    masked to false
+                    val u = parts[0]
+                    "${u.take(2)}${"*".repeat((u.length - 3).coerceAtLeast(0))}${u.lastOrNull() ?: ""}@${parts[1]}" to false
                 } else content.take(40) to false
             }
-            else -> content.take(40) to false
+            else -> content.take(50) to false
         }
     }
 
@@ -135,35 +224,39 @@ object ClipboardAnalyzer {
         type: ClipboardDataType,
         pkg: String
     ): Pair<ClipboardRisk, String> {
+        val isTrusted = TRUSTED_APPS.any { pkg.startsWith(it) }
 
-        // Intrinsically critical data types
-        if (type == ClipboardDataType.CREDIT_CARD)
-            return ClipboardRisk.CRITICAL to "Credit card number detected in clipboard"
-
-        if (type == ClipboardDataType.NATIONAL_ID)
-            return ClipboardRisk.CRITICAL to "National ID / BVN / account number in clipboard"
-
-        if (type == ClipboardDataType.CRYPTO_ADDRESS)
-            return ClipboardRisk.CRITICAL to "Crypto wallet address — clipboard hijacking risk"
-
-        if (type == ClipboardDataType.PASSWORD)
-            return ClipboardRisk.CRITICAL to "Password or secret key detected in clipboard"
-
-        // Suspicious access patterns
-        if (pkg in SUSPICIOUS_CLIPBOARD_APPS)
-            return ClipboardRisk.CRITICAL to "$pkg has no legitimate reason to read clipboard"
-
-        if (!TRUSTED_CLIPBOARD_APPS.any { pkg.startsWith(it) }) {
-            if (type == ClipboardDataType.PHONE_NUMBER)
-                return ClipboardRisk.SUSPICIOUS to "Phone number accessed by $pkg"
-            if (type == ClipboardDataType.EMAIL)
-                return ClipboardRisk.SUSPICIOUS to "Email address accessed by $pkg"
-            if (content.length > 200)
-                return ClipboardRisk.SUSPICIOUS to "Large clipboard content (${ content.length} chars) accessed by untrusted app"
+        return when (type) {
+            ClipboardDataType.CREDIT_CARD    ->
+                ClipboardRisk.CRITICAL to "Card number detected — clear clipboard immediately"
+            ClipboardDataType.NATIONAL_ID    ->
+                ClipboardRisk.CRITICAL to "Government ID / account number in clipboard"
+            ClipboardDataType.CRYPTO_ADDRESS ->
+                ClipboardRisk.CRITICAL to "Crypto address — verify before pasting (hijacking risk)"
+            ClipboardDataType.PASSWORD       ->
+                if (isTrusted) ClipboardRisk.SUSPICIOUS to "Credential copied from trusted app"
+                else ClipboardRisk.CRITICAL to "Password or secret key exposed in clipboard"
+            ClipboardDataType.PHONE_NUMBER   ->
+                if (!isTrusted) ClipboardRisk.SUSPICIOUS to "Phone number read by $pkg"
+                else ClipboardRisk.SAFE to "Normal clipboard access"
+            ClipboardDataType.EMAIL          ->
+                if (!isTrusted) ClipboardRisk.SUSPICIOUS to "Email address read by $pkg"
+                else ClipboardRisk.SAFE to "Normal clipboard access"
+            ClipboardDataType.URL            -> {
+                val hasSensitiveParam = content.contains(
+                    Regex("""(?i)(token|password|secret|key|auth|session)=""")
+                )
+                if (hasSensitiveParam)
+                    ClipboardRisk.SUSPICIOUS to "URL contains sensitive parameters"
+                else ClipboardRisk.SAFE to "Normal clipboard access"
+            }
+            else -> {
+                if (!isTrusted && content.length > 500)
+                    ClipboardRisk.SUSPICIOUS to "Large content (${content.length} chars) read by $pkg"
+                else ClipboardRisk.SAFE to "Normal clipboard access"
+            }
         }
-
-        return ClipboardRisk.SAFE to "Normal clipboard access"
     }
 
-    fun isTrustedApp(pkg: String) = TRUSTED_CLIPBOARD_APPS.any { pkg.startsWith(it) }
+    fun isTrustedApp(pkg: String) = TRUSTED_APPS.any { pkg.startsWith(it) }
 }
