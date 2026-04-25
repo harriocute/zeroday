@@ -2,6 +2,8 @@ package com.zeroday.antivirus.model
 
 import android.content.Context
 import androidx.room.*
+import com.zeroday.antivirus.clipboard.ClipboardDao
+import com.zeroday.antivirus.clipboard.ClipboardEntry
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -34,9 +36,14 @@ interface ThreatDao {
     fun getActiveThreatCount(): Flow<Int>
 }
 
-@Database(entities = [ThreatResult::class], version = 1, exportSchema = false)
+@Database(
+    entities = [ThreatResult::class, ClipboardEntry::class],
+    version = 2,
+    exportSchema = false
+)
 abstract class ZerodayDatabase : RoomDatabase() {
     abstract fun threatDao(): ThreatDao
+    abstract fun clipboardDao(): ClipboardDao
 
     companion object {
         @Volatile private var INSTANCE: ZerodayDatabase? = null
