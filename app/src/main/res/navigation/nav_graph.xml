@@ -4,7 +4,8 @@
     android:id="@+id/nav_graph"
     app:startDestination="@id/homeFragment">
 
-    <fragment android:id="@+id/homeFragment"
+    <fragment
+        android:id="@+id/homeFragment"
         android:name="com.zeroday.antivirus.ui.home.HomeFragment"
         android:label="Home">
         <action android:id="@+id/action_home_to_scan"
@@ -13,23 +14,28 @@
             app:destination="@id/threatsFragment"/>
     </fragment>
 
-    <fragment android:id="@+id/scanFragment"
+    <fragment
+        android:id="@+id/scanFragment"
         android:name="com.zeroday.antivirus.ui.scan.ScanFragment"
         android:label="Scan"/>
 
-    <fragment android:id="@+id/threatsFragment"
+    <fragment
+        android:id="@+id/threatsFragment"
         android:name="com.zeroday.antivirus.ui.threats.ThreatsFragment"
         android:label="Threats"/>
 
-    <fragment android:id="@+id/clipboardFragment"
+    <fragment
+        android:id="@+id/dnsFragment"
+        android:name="com.zeroday.antivirus.ui.dns.DnsFragment"
+        android:label="DNS Blocker"/>
+
+    <fragment
+        android:id="@+id/clipboardFragment"
         android:name="com.zeroday.antivirus.ui.clipboard.ClipboardFragment"
         android:label="Clipboard"/>
 
-    <fragment android:id="@+id/dnsFragment"
-        android:name="com.zeroday.antivirus.ui.dns.DnsFragment"
-        android:label="DNS"/>
-
-    <fragment android:id="@+id/settingsFragment"
+    <fragment
+        android:id="@+id/settingsFragment"
         android:name="com.zeroday.antivirus.ui.settings.SettingsFragment"
         android:label="Settings"/>
 
