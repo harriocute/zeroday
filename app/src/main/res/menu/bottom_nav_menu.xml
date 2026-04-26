@@ -1,8 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/homeFragment"      android:icon="@drawable/ic_home"     android:title="Home"/>
-    <item android:id="@+id/scanFragment"      android:icon="@drawable/ic_scan"     android:title="Scan"/>
-    <item android:id="@+id/threatsFragment"   android:icon="@drawable/ic_threat"   android:title="Threats"/>
-    <item android:id="@+id/clipboardFragment" android:icon="@drawable/ic_clipboard" android:title="Clipboard"/>
-    <item android:id="@+id/settingsFragment"  android:icon="@drawable/ic_settings" android:title="Settings"/>
+    <item android:id="@+id/homeFragment"
+        android:icon="@drawable/ic_home"
+        android:title="Home"/>
+    <item android:id="@+id/scanFragment"
+        android:icon="@drawable/ic_scan"
+        android:title="Scan"/>
+    <item android:id="@+id/clipboardFragment"
+        android:icon="@drawable/ic_clipboard"
+        android:title="Clipboard"/>
+    <item android:id="@+id/dnsFragment"
+        android:icon="@drawable/ic_dns"
+        android:title="DNS"/>
+    <item android:id="@+id/settingsFragment"
+        android:icon="@drawable/ic_settings"
+        android:title="Settings"/>
 </menu>

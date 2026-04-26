@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+    <!-- Allow cleartext only to upstream DNS servers (raw UDP, not HTTP) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">1.1.1.1</domain>
+        <domain includeSubdomains="false">8.8.8.8</domain>
+        <domain includeSubdomains="false">9.9.9.9</domain>
+    </domain-config>
+</network-security-config>

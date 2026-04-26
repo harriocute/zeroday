@@ -7,8 +7,10 @@
     <fragment android:id="@+id/homeFragment"
         android:name="com.zeroday.antivirus.ui.home.HomeFragment"
         android:label="Home">
-        <action android:id="@+id/action_home_to_scan" app:destination="@id/scanFragment"/>
-        <action android:id="@+id/action_home_to_threats" app:destination="@id/threatsFragment"/>
+        <action android:id="@+id/action_home_to_scan"
+            app:destination="@id/scanFragment"/>
+        <action android:id="@+id/action_home_to_threats"
+            app:destination="@id/threatsFragment"/>
     </fragment>
 
     <fragment android:id="@+id/scanFragment"
@@ -23,7 +25,12 @@
         android:name="com.zeroday.antivirus.ui.clipboard.ClipboardFragment"
         android:label="Clipboard"/>
 
+    <fragment android:id="@+id/dnsFragment"
+        android:name="com.zeroday.antivirus.ui.dns.DnsFragment"
+        android:label="DNS"/>
+
     <fragment android:id="@+id/settingsFragment"
         android:name="com.zeroday.antivirus.ui.settings.SettingsFragment"
         android:label="Settings"/>
+
 </navigation>
